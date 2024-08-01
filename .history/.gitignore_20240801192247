@@ -15,7 +15,6 @@ venv/
 
 # Exclude app.py from being tracked
 app.py
-app copy.py
 
 
 # OS specific

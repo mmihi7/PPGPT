@@ -37,6 +37,17 @@ def read_pdf(file_path):
             text += page.extract_text()
     return text
 
+# Function to save summary and highlights as Markdown
+def save_markdown(document_name, summary, highlights):
+    folder_path = "summaries"
+    os.makedirs(folder_path, exist_ok=True)
+    with open(f"{folder_path}/{document_name}_summary.md", "w") as f:
+        f.write("# AI-Generated Summary\n")
+        f.write(summary + "\n")
+    with open(f"{folder_path}/{document_name}_highlights.md", "w") as f:
+        f.write("# Key Highlights and Impacts\n")
+        f.write(highlights + "\n")
+
 # Function to display PDF
 def display_pdf(file_path):
     with open(file_path, "rb") as f:
@@ -131,7 +142,8 @@ col1, col2, col3 = st.columns([1, 2, 1])
 
 # Column 1 (Left)
 with col1:
-    st.title("Kenya Public Participation Tool")
+    st.title("Public GPT")
+    st.write("The Kenya Public Participation Tool is a web application designed to facilitate public engagement and feedback on government documents such as bills, policies, and regulations. The goal of this tool is to enable citizens to easily access, understand, and provide comments on these documents, ultimately promoting transparency and inclusive governance in Kenya.")
     
     document_list = [f for f in os.listdir("documents") if f.endswith(".pdf")]
     document_list.insert(0, "None")  # Add "None" as the first option
@@ -148,38 +160,56 @@ with col1:
 # Column 2 (Middle)
 with col2:
     if selected_document and selected_document != "None":
-        st.subheader("Original Document")
+        st.text("Link to original document")
         doc_path = f"documents/{selected_document}"
-        doc_content = read_pdf(doc_path)
         
-        # Display full PDF
-        display_pdf(doc_path)
+        # Provide a link to the original document
+        st.markdown(f"[Document](file://{doc_path})", unsafe_allow_html=True)
         
-        summary = generate_ai_content(SUMMARY_PROMPT.format(document_text=doc_content[:5000]))
-        highlights = generate_ai_content(HIGHLIGHTS_PROMPT.format(document_text=doc_content[:5000]))
+        # Check if summary and highlights already exist
+        summary_path = f"summaries/{selected_document}_summary.md"
+        highlights_path = f"summaries/{selected_document}_highlights.md"
         
+        if not os.path.exists(summary_path) or not os.path.exists(highlights_path):
+            # Generate AI content
+            doc_content = read_pdf(doc_path)
+            summary = generate_ai_content(SUMMARY_PROMPT.format(document_text=doc_content[:5000]))
+            highlights = generate_ai_content(HIGHLIGHTS_PROMPT.format(document_text=doc_content[:5000]))
+            save_markdown(selected_document, summary, highlights)
+        
+        # Create accordions for summary and insights
         with st.expander("AI-Generated Summary"):
-            st.write(summary)
+            if os.path.exists(summary_path):
+                with open(summary_path, "r") as f:
+                    st.markdown(f.read())
+            else:
+                st.write("Summary not available.")
         
-        st.subheader("Key Highlights and Impacts")
-        st.write(highlights)
+        with st.expander("Key Highlights and Impacts"):
+            if os.path.exists(highlights_path):
+                with open(highlights_path, "r") as f:
+                    st.markdown(f.read())
+            else:
+                st.write("Highlights not available.")
     else:
-        st.write("Please select a document to view its content and analysis.")
+        st.write("No document selected")
 
 # Column 3 (Right)
 with col3:
     if selected_document and selected_document != "None":
         st.subheader("Chat with AI")
         user_question = st.text_input("Ask a question about the document")
-        if user_question:
-            ai_answer = generate_ai_content(ANSWER_PROMPT.format(document_text=doc_content[:5000], user_question=user_question))
-            st.write("AI Response:", ai_answer)
-        
-        st.subheader("Provide Your Comments")
         user_comment = st.text_area("Your comment", height=150)
-        uploaded_file = st.file_uploader("Upload supporting document (max 1MB)", type=["pdf", "docx"], accept_multiple_files=False)
         
-        if st.button("Submit Comment"):
+        if st.button("Submit"):
+            if user_question:
+                # Check if the answer is in the document
+                ai_answer = generate_ai_content(ANSWER_PROMPT.format(document_text=doc_content[:5000], user_question=user_question))
+                if "not found" in ai_answer.lower():
+                    st.write("AI Response: The answer is not in the document.")
+                else:
+                    st.write("AI Response:", ai_answer)
+            
             if user_comment:
                 sentiment_analysis = generate_ai_content(SENTIMENT_PROMPT.format(user_comment=user_comment))
                 sentiment, category = sentiment_analysis.split('\n')[0], "General"  # You might want to refine category extraction
@@ -189,7 +219,7 @@ with col3:
             else:
                 st.error("Please enter a comment before submitting.")
     else:
-        st.write("Please select a document to provide comments or ask questions.")
+        st.write("No document selected.")
 
 # Results section (appears after submission)
 if st.session_state.get('comment_submitted', False) and selected_document != "None":

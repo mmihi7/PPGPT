@@ -13,9 +13,7 @@ venv/
 **/summaries/
 **/documents/
 
-# Exclude app.py from being tracked
-app.py
-app copy.py
+app.py/
 
 
 # OS specific
